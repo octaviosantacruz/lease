@@ -1,18 +1,17 @@
 # Lease
 
 Zero standing privilege for humans and agents: nobody holds permanent access.
-A principal asks for an entitlement, a policy decides, access is granted with an
-expiry, **revocation is guaranteed**, and a reconciler proves nothing was left
-behind.
+The intended workflow is a principal requesting an entitlement, policy and
+approval, time-bounded access, active revocation and reconciliation. These
+access operations are not implemented yet; no live privilege is managed.
 
-Status: **design + scaffold (2026-10-20)**. Nothing is usable yet. Working name.
+Status: **SQLite storage and database maintenance CLI (2026-10-22)**. Core
+state machine and reconciler remain maintainer exercises; no functional access
+broker or real provider yet. Working name.
 
 ## Why
 
-Open-source just-in-time access exists only in pieces: Teleport Community lacks
-approval workflows (Enterprise feature), AWS TEAM covers only AWS, and small tools
-cover one target each. The commercial products (CyberArk, BeyondTrust, Britive,
-Opal, Apono) are closed. Lease is a small, readable, target-agnostic broker.
+Lease explores a small, readable, target-agnostic broker for temporary access.
 
 The hard part is not the approval flow. It is guaranteeing revocation when the
 broker crashes, a revoke fails, or someone grants a role by hand. See
@@ -21,10 +20,11 @@ broker crashes, a revoke fails, or someone grants a role by hand. See
 ## Layout
 
 ```
-cmd/lease/            CLI entry point (stub)
+cmd/lease/            explicit db up/status/verify CLI (access commands pending)
 internal/grant/       grant lifecycle state machine (pure)
 internal/reconcile/   expected-vs-actual diff (pure)
 internal/provider/    Provider interface: Grant, Revoke, Observe
+internal/store/       SQLite migrations, durable intent and chained audit log
 docs/                 design, trackers
 scripts/verify.sh     local gate
 ```
@@ -32,9 +32,13 @@ scripts/verify.sh     local gate
 ## Commands
 
 ```bash
-go test -race ./...    # tests
-scripts/verify.sh      # full gate
+go test -race ./internal/store ./cmd/lease  # implemented infrastructure
+scripts/verify.sh                           # full gate (core exercises still red)
 ```
+
+Database commands and guarantees: [storage contract](docs/storage.md).
+The maintainer still owns `LEASE-001` and `LEASE-002`; their tests intentionally
+fail until those functions are implemented.
 
 ## Non-goals
 

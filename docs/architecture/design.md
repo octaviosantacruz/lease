@@ -1,11 +1,14 @@
 # Lease — design
 
-Status: proposed, 2026-10-20. Workspace idea `IDEA-009`.
+Status: proposed, updated 2026-10-22. Workspace idea `IDEA-009`.
+Storage infrastructure is implemented separately in [storage.md](../storage.md);
+policy, providers and the maintainer core exercises are not complete.
 
 ## Goal
 
 Zero standing privilege (ZSP) for humans and agents: every privilege is a lease
-with an expiry; revocation is guaranteed and continuously verified.
+with an expiry; active revocation and continuous verification are required.
+This is a design goal, not an implemented guarantee.
 
 ## Concepts
 
@@ -39,11 +42,16 @@ Terminal states: `denied`, `revoked`.
   retried, never abandoned.
 - `Next(from, event)` is a pure function; anything not in the table is an error.
 
-## Guaranteed revocation: three layers
+## Revocation design: three layers
 
-1. **Native expiry at the target** when it exists (PostgreSQL `VALID UNTIL`, SSH
-   certificate validity, AWS STS session). Access ends even if Lease is dead.
-   Providers with native expiry are preferred.
+1. **Native expiry of the entitlement**, when the target actually enforces it.
+   Credential expiry alone may only stop new authentication; it does not prove
+   that existing sessions or privileges ended. Providers must document and test
+   that scope before claiming `NativeExpiry`. PostgreSQL `VALID UNTIL` expires
+   the password, not the role, and does not cover non-password authentication.
+   SSH certificate validity likewise describes a certificate authentication
+   window; session lifetime requires its own tested enforcement. No provider
+   may advertise automatic expiry of every privilege from these settings alone.
 2. **Active revoke** when the lease expires or is revoked early.
 3. **Reconciler.** Periodically asks each provider what privileges *actually*
    exist (`Observe`), compares them with the expected active grants and revokes
@@ -51,6 +59,12 @@ Terminal states: `denied`, `revoked`.
 
 **Intent before action:** the transition (e.g. `granting`) is persisted before the
 provider is called. After a restart, every non-terminal grant is reconciled.
+
+PostgreSQL contract reference: [CREATE ROLE](https://www.postgresql.org/docs/18/sql-createrole.html).
+SSH validity reference: [ssh-keygen -V](https://man.openbsd.org/ssh-keygen.1#V).
+The PostgreSQL provider must test session termination/privilege removal and
+revoke retries separately; a complete broker cannot promise a deadline during
+a broker outage unless the target independently enforces that deadline.
 
 The reconciler also yields a **standing-privilege inventory**: how far a target is
 from ZSP. That is a metric to report, not only an enforcement loop.
@@ -105,8 +119,11 @@ decommission (`IDEA-006`) on top of the reconciler.
 
 ## Storage and evidence
 
-Single binary, SQLite. Grants and leases in tables; every transition appended to a
-hash-chained event log (same idea as Switchboard `AUD-001`, not shared code).
+Single binary, SQLite. Entitlements, grants and hash-chained events are now
+persisted by `internal/store` with explicit migrations and atomic state/event
+commits. [Storage contract](../storage.md). There is no external anchor and no
+shared code with Switchboard. The future executor must persist `granting` or
+`revoking` before calling a provider; storage alone does not implement that executor.
 
 ## Relationship with other projects
 

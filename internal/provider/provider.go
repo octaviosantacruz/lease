@@ -36,13 +36,17 @@ type Actual struct {
 
 // Caps describes what a provider can guarantee.
 type Caps struct {
-	// NativeExpiry means the target itself ends the access at ExpiresAt, even
-	// if the broker is down (PostgreSQL VALID UNTIL, SSH certificate validity).
+	// NativeExpiry means the target ends the entitlement at ExpiresAt even
+	// while the broker is down, including any session scope the provider promises.
+	// Password/certificate authentication expiry alone is not sufficient.
+	// PostgreSQL VALID UNTIL must not set this capability by itself.
 	NativeExpiry bool
 }
 
 // Provider applies, removes and observes privileges on one kind of target.
-// Grant and Revoke must be idempotent.
+// Grant and Revoke must be idempotent per GrantID. Revoke must also handle
+// a lost Grant result: resolve an empty Ref by GrantID/observation, or return
+// an error so cleanup is retried; a missing local Ref is not proof of absence.
 type Provider interface {
 	Grant(ctx context.Context, g GrantSpec) (Handle, error)
 	Revoke(ctx context.Context, h Handle) error
