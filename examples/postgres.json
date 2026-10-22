@@ -1,0 +1,20 @@
+{
+  "postgres": {
+    "target": "postgres/disposable",
+    "namespace": "leaselab",
+    "dsn_env": "LEASE_PG_DSN",
+    "principals": { "user:ines": "lease_demo_ines" },
+    "roles": { "readonly": "lease_demo_reader" }
+  },
+  "entitlements": [
+    {
+      "id": "postgres-read",
+      "provider": "postgres",
+      "target": "postgres/disposable",
+      "role": "readonly",
+      "max_ttl": "15m",
+      "requesters": ["user:ines"],
+      "approvers": ["user:mateo"]
+    }
+  ]
+}

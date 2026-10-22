@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Lease | Acceso que termina</title>
+    <meta
+      name="description"
+      content="Solicitá acceso temporal, aprobalo con otra persona y verificá su revocación. Lease es un broker de acceso en Go, con estado local y evidencia verificable."
+    />
+    <link rel="stylesheet" href="/site.css" />
+    <link rel="icon" href="data:," />
+  </head>
+  <body class="landing">
+    <a class="skip" href="#contenido">Saltar al contenido</a>
+    <header class="site-header wrap">
+      <a class="brand" href="/" aria-label="Lease, inicio"
+        >lease<span aria-hidden="true">↗</span></a
+      >
+      <nav aria-label="Principal">
+        <a href="#recorrido">Cómo funciona</a><a href="/guide/">Instalación</a
+        ><a class="button small" href="/console/"
+          >Abrir laboratorio <span aria-hidden="true">↗</span></a
+        >
+      </nav>
+    </header>
+    <main id="contenido">
+      <section class="hero wrap">
+        <div class="hero-copy">
+          <p class="eyebrow">Acceso temporal, bajo tu control</p>
+          <h1>El permiso entra.<br />Y también sale.</h1>
+          <p class="lede">
+            Solicitá, aprobá y revocá acceso para personas y agentes. Cada
+            permiso tiene un plazo y una historia.
+          </p>
+          <div class="actions">
+            <a class="button" href="/console/"
+              >Abrir laboratorio <span aria-hidden="true">↗</span></a
+            ><a class="text-link" href="/guide/">Ver instalación</a>
+          </div>
+        </div>
+        <figure class="hero-image">
+          <img
+            src="/media/access-key.webp"
+            width="1536"
+            height="1024"
+            alt="Una llave de aluminio saliendo de un bloque azul"
+            fetchpriority="high"
+          />
+        </figure>
+      </section>
+      <section class="scope-strip wrap" aria-label="Estado del producto">
+        <p>
+          <strong>Un binario Go.</strong> Estado SQLite. Tu infraestructura.
+        </p>
+        <p>
+          Primer corte local con PostgreSQL. Laboratorio con datos ficticios.
+        </p>
+      </section>
+      <section class="journey wrap" id="recorrido">
+        <div class="section-intro">
+          <h2>Un incidente dura un rato.<br />El acceso también debería.</h2>
+          <p>
+            Inés necesita consultar un reporte. Mateo revisa la solicitud. El
+            permiso termina cuando se resuelve el incidente o vence su ventana.
+          </p>
+        </div>
+        <ol class="steps">
+          <li>
+            <span class="step-label">Solicitud</span>
+            <h3>Un destino. Un motivo. Un plazo.</h3>
+            <p>
+              El catálogo limita qué puede pedir cada persona o agente y por
+              cuánto tiempo.
+            </p>
+            <code>analytics / readonly / 20m</code>
+          </li>
+          <li>
+            <span class="step-label">Aprobación</span>
+            <h3>Otra persona toma la decisión.</h3>
+            <p>
+              El solicitante no aprueba su propio acceso. Lease registra quién
+              decidió y cuándo.
+            </p>
+            <code>Inés solicita → Mateo aprueba</code>
+          </li>
+          <li>
+            <span class="step-label">Salida</span>
+            <h3>Revocar y comprobar.</h3>
+            <p>
+              El worker retira el permiso y consulta el destino. Si falla,
+              conserva el intento pendiente para reintentar.
+            </p>
+            <code>active → revoking → revoked</code>
+          </li>
+        </ol>
+      </section>
+      <section class="evidence-section wrap">
+        <div>
+          <p class="eyebrow">El recorrido queda registrado</p>
+          <h2>Que el acceso termine<br />también necesita evidencia.</h2>
+          <p>
+            Cada transición se guarda junto con su evento. Los hashes
+            encadenados permiten comprobar la consistencia del registro local.
+          </p>
+          <p>
+            Si Lease reinicia a mitad de una concesión, trata ese resultado como
+            desconocido y lo lleva a limpieza.
+          </p>
+          <a class="text-link" href="/console/#evidence"
+            >Explorar la evidencia <span aria-hidden="true">↗</span></a
+          >
+        </div>
+        <figure class="console-figure">
+          <img
+            src="/media/console.webp"
+            width="1360"
+            height="900"
+            alt="Consola de Lease con solicitudes, permisos temporales y acceso a su evidencia"
+            loading="lazy"
+          />
+          <figcaption>
+            Consola real del laboratorio. Personas, destinos y permisos
+            ficticios.
+          </figcaption>
+        </figure>
+      </section>
+      <section class="boundaries wrap">
+        <h2>Un alcance que podés revisar.</h2>
+        <dl>
+          <div>
+            <dt>Hoy</dt>
+            <dd>
+              Política local, aprobación separada, worker, recuperación y
+              evidencia. PostgreSQL sobre roles administrados por Lease.
+            </dd>
+          </div>
+          <div>
+            <dt>En el laboratorio</dt>
+            <dd>
+              El mismo núcleo Go con un destino simulado persistente. Podés
+              solicitar, aprobar, denegar, revocar y ver el vencimiento.
+            </dd>
+          </div>
+          <div>
+            <dt>Próximos pasos</dt>
+            <dd>
+              Identidad OIDC, proveedores adicionales y consola operativa para
+              destinos reales. Se mantienen como trabajo pendiente.
+            </dd>
+          </div>
+          <div>
+            <dt>El límite del plazo</dt>
+            <dd>
+              PostgreSQL necesita el worker disponible para retirar el acceso.
+              No hay garantía de vencimiento durante una caída del broker.
+            </dd>
+          </div>
+        </dl>
+      </section>
+      <section class="install wrap">
+        <div>
+          <h2>Empezá en tu máquina.</h2>
+          <p>
+            Sin conectarte a ningún sistema real. Después probá PostgreSQL en un
+            clúster descartable.
+          </p>
+          <a class="button" href="/guide/"
+            >Ver instalación <span aria-hidden="true">↗</span></a
+          >
+        </div>
+        <pre><code>go build -o lease ./cmd/lease
+./lease demo --dir ./lease-lab \
+  --listen 127.0.0.1:8789 --seed
+
+# Abrí la dirección que imprime Lease.</code></pre>
+      </section>
+    </main>
+    <footer class="site-footer wrap">
+      <a class="brand" href="/">lease<span aria-hidden="true">↗</span></a>
+      <p>Acceso temporal para personas y agentes.</p>
+      <a href="/guide/">Guía y límites</a>
+    </footer>
+  </body>
+</html>

@@ -1,27 +1,24 @@
 # To implement — Lease
 
-Single source of pending work. Updated: 2026-10-22. Finished work moves to
-[IMPLEMENTED.md](IMPLEMENTED.md) with evidence.
+Fuente única de pendientes. Actualizado 22/10/2026. Los cierres viven en
+[IMPLEMENTED.md](IMPLEMENTED.md). El dueño autorizó completar el producto y
+la web, incluidas las piezas del núcleo antes reservadas como ejercicios.
 
-## Phase 0 · MVP (core + PostgreSQL + CLI)
+El corte local `LEASE-001` a `LEASE-006` y `LEASE-040` está implementado. La
+consola opera sólo laboratorio; PostgreSQL se opera por CLI local. No hay
+publicación ni instalación productiva verificadas.
 
-| ID | Task | State | Done when |
-|---|---|---|---|
-| `LEASE-001` | Grant state machine: implement `grant.Next` from the table in the design. **Maintainer writes it.** | Ready (tests written, failing by design) | `go test ./internal/grant` passes; no transition outside the table is accepted. |
-| `LEASE-002` | Reconciler diff: implement `reconcile.Diff`. **Maintainer writes it.** | Ready (tests written, failing by design) | `go test ./internal/reconcile` passes, including the `expires_at == now` boundary. |
-| `LEASE-004` | PostgreSQL provider: ephemeral role, password validity, active revoke and observation. | Planned; storage base available | Disposable integration tests for new and existing sessions, non-password authentication, unknown outcomes and cleanup by GrantID. `VALID UNTIL` alone is not full privilege expiry; do not claim NativeExpiry from it. |
-| `LEASE-005` | CLI: `lease request`, `approve`, `deny`, `revoke`, `list`, `reconcile`. | In progress: only explicit local `db up/status/verify` exists | Request/approval/revoke workflow and end-to-end demo on a disposable database remain pending; storage commands do not grant access. |
-
-## Later phases
-
-| ID | Task | State |
+| ID | Trabajo | Estado y criterio de cierre |
 |---|---|---|
-| `LEASE-010` | SSH certificate provider (short-validity user certs). | Planned (phase 1) |
-| `LEASE-011` | Approvals (CLI/web), break-glass with mandatory post-review. | Planned (phase 1) |
-| `LEASE-020` | HTTP API, agents as principals. | Planned (phase 2) |
-| `LEASE-021` | Optional `Decider` (typed AI decision, stricter-only). | Planned (phase 2) |
-| `LEASE-030` | Switchboard integration (time-bound claim elevation, `ACC`). | Planned (phase 3) |
+| `LEASE-007` | Instalación real restringida de PostgreSQL | Pendiente: receta de permisos de operador sin superusuario, integración con esos permisos, revisión de privilegios transitivos, métricas/alertas y recuperación operativa en staging. Ver [contrato](postgres.md). |
+| `LEASE-008` | Credencial efímera PostgreSQL | Pendiente: distribución local segura y de un solo destinatario, revocación y sesiones probadas. El adaptador actual implementa elevación de un login existente. |
+| `LEASE-010` | Proveedor de certificados SSH | Pendiente: contrato y pruebas de autenticación, sesiones existentes, revocación y alcance real del vencimiento. |
+| `LEASE-011` | Break-glass y revisión posterior | Pendiente. Aprobación separada normal ya existe; no hay acceso de emergencia ni bypass del catálogo. |
+| `LEASE-020` | Identidad verificada y API operativa | Pendiente: elegir OIDC/workload identity, mapear sujetos y permisos en servidor, pruebas de autorización y consola para destinos reales. La API actual sólo sirve al laboratorio loopback. |
+| `LEASE-021` | Decider opcional | Pendiente: decisión tipada que sólo pueda restringir la política. No requerido por el corte actual. |
+| `LEASE-030` | Integración Switchboard | Pendiente; requiere identidad verificada y contrato específico. Lease sigue independiente. |
+| `LEASE-041` | Web ES/EN y publicación | Español local implementado. Falta traducción, revisión del dueño, licencia/distribución y hosting/corte explícito. La exportación estática no publica. |
 
-`LEASE-003` moved to [IMPLEMENTED.md](IMPLEMENTED.md). It does not unblock
-a functional broker until the maintainer completes `LEASE-001`/`LEASE-002`.
-The full gate remains failing by design for those two packages.
+No ampliar la exposición de la consola de laboratorio para convertirla en
+operativa: el selector de actores no prueba identidad. Mantener próximos
+proveedores independientes de Server Ops y de los datos de Custodia.

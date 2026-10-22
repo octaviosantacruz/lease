@@ -13,3 +13,7 @@ coverage.out
 .env.*
 *.key
 *.pem
+
+/lease
+/lease-lab/
+/lease-site/

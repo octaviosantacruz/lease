@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="robots" content="noindex" />
+    <title>Consola de laboratorio | Lease</title>
+    <link rel="stylesheet" href="/site.css" />
+    <link rel="stylesheet" href="/console.css" />
+    <link rel="icon" href="data:," />
+    <script type="module" src="/console.js"></script>
+  </head>
+  <body class="console">
+    <a class="skip" href="#contenido">Saltar al contenido</a>
+    <header class="console-header">
+      <a class="brand" href="/">lease<span aria-hidden="true">↗</span></a
+      ><span class="workspace-name">Litoral <span>Laboratorio</span></span>
+      <div class="identity">
+        <label for="actor">Simular rol de</label
+        ><select id="actor">
+          <option value="user:ines">Inés Roldán · Solicitante</option>
+          <option value="user:mateo">Mateo Vidal · Aprobador</option>
+          <option value="agent:diagnostico">Diagnóstico · Agente</option>
+        </select>
+      </div>
+    </header>
+    <div class="console-layout">
+      <aside class="sidebar">
+        <p class="sidebar-label">Acceso temporal</p>
+        <nav aria-label="Consola">
+          <a href="#requests" data-view="requests" aria-current="page"
+            >Solicitudes</a
+          ><a href="#catalog" data-view="catalog">Catálogo</a
+          ><a href="#evidence" data-view="evidence">Evidencia</a>
+        </nav>
+        <div class="sidebar-bottom">
+          <p>Tu laboratorio local</p>
+          <p class="muted">
+            Personas y permisos ficticios. Ningún acceso real.
+          </p>
+          <a href="/guide/">Guía de uso ↗</a>
+        </div>
+      </aside>
+      <main id="contenido" class="console-main">
+        <div class="lab-notice">
+          El selector simula personas; no autentica usuarios. El destino es un
+          laboratorio aislado.
+        </div>
+        <div id="connection-error" class="notice" role="alert" hidden></div>
+        <div id="feedback" role="status" aria-live="polite"></div>
+        <div id="screen" aria-busy="true">
+          <div class="page-heading">
+            <div>
+              <p class="muted">Litoral / Acceso</p>
+              <h1 tabindex="-1">Cargando solicitudes…</h1>
+            </div>
+          </div>
+          <div class="loading-lines" aria-label="Cargando datos">
+            <div></div>
+            <div></div>
+            <div></div>
+          </div>
+        </div>
+      </main>
+    </div>
+    <dialog id="request-dialog" aria-labelledby="request-title">
+      <form id="request-form">
+        <div class="dialog-header">
+          <h2 id="request-title">Solicitar acceso</h2>
+          <button
+            type="button"
+            class="quiet"
+            data-close="request-dialog"
+            aria-label="Cerrar solicitud"
+          >
+            ×
+          </button>
+        </div>
+        <p class="muted">
+          La ventana empieza ahora. Otra persona debe aprobarla antes de que
+          venza.
+        </p>
+        <label for="entitlement">Permiso</label
+        ><select id="entitlement" name="entitlement" required></select>
+        <p id="entitlement-hint" class="field-hint"></p>
+        <label for="duration">Duración</label
+        ><select id="duration" name="duration" required></select
+        ><label for="reason">Motivo o ticket</label
+        ><textarea
+          id="reason"
+          name="reason"
+          rows="3"
+          maxlength="500"
+          required
+          placeholder="Qué necesitás investigar y por qué"
+        ></textarea>
+        <p class="field-hint">
+          Quedará visible en la evidencia del laboratorio.
+        </p>
+        <p id="form-error" class="notice" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button type="button" class="quiet" data-close="request-dialog">
+            Cancelar</button
+          ><button type="submit" class="primary">Enviar solicitud</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="detail-dialog" aria-labelledby="detail-title">
+      <div class="dialog-header">
+        <h2 id="detail-title">Detalle del permiso</h2>
+        <button
+          type="button"
+          class="quiet"
+          data-close="detail-dialog"
+          aria-label="Cerrar detalle"
+        >
+          ×
+        </button>
+      </div>
+      <div id="detail-content"></div>
+    </dialog>
+    <noscript
+      ><p class="notice">
+        La consola necesita JavaScript. Podés operar desde la CLI siguiendo
+        <a href="/guide/">la guía</a>.
+      </p></noscript
+    >
+  </body>
+</html>

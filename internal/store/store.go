@@ -138,6 +138,17 @@ func (s *Store) CreateEntitlement(ctx context.Context, e Entitlement) error {
 
 // CreateRequest atomically stores Requested and its first event. Policy runs later.
 func (s *Store) CreateRequest(ctx context.Context, r Request, actor string, at time.Time) (Grant, error) {
+	return s.createRequest(ctx, r, actor, at, "")
+}
+
+// CreateCleanup atomically adopts an orphan as Revoking, never as an approvable request.
+func (s *Store) CreateCleanup(ctx context.Context, r Request, ref, actor string, at time.Time) (Grant, error) {
+	if !nonempty(ref) {
+		return Grant{}, ErrInvalid
+	}
+	return s.createRequest(ctx, r, actor, at, ref)
+}
+func (s *Store) createRequest(ctx context.Context, r Request, actor string, at time.Time, cleanupRef string) (Grant, error) {
 	if !nonempty(r.ID, r.EntitlementID, r.Principal, r.Reason, actor) || !validTime(at) || !validTime(r.ExpiresAt) || !at.Before(r.ExpiresAt) {
 		return Grant{}, ErrInvalid
 	}
@@ -177,7 +188,21 @@ func (s *Store) CreateRequest(ctx context.Context, r Request, actor string, at t
 		if err != nil {
 			return err
 		}
-		return appendEvent(ctx, tx, result, "created", actor)
+		if err = appendEvent(ctx, tx, result, "created", actor); err != nil {
+			return err
+		}
+		if cleanupRef != "" {
+			result.State, result.Version, result.Ref = grant.Revoking, 2, cleanupRef
+			payload, err := json.Marshal(result)
+			if err != nil {
+				return err
+			}
+			if _, err = tx.ExecContext(ctx, "UPDATE grants SET state=?,version=?,payload=? WHERE id=?", result.State, result.Version, payload, result.ID); err != nil {
+				return err
+			}
+			return appendEvent(ctx, tx, result, string(grant.Revoke), actor)
+		}
+		return nil
 	})
 	if err != nil {
 		return Grant{}, err
@@ -255,7 +280,7 @@ func (s *Store) Advance(ctx context.Context, change Change, at time.Time) (Grant
 			return ErrInvalid
 		}
 		if change.Ref != "" {
-			if change.Event != grant.StartGrant && change.Event != grant.Granted {
+			if change.Event != grant.StartGrant && change.Event != grant.Granted && change.Event != grant.Revoke {
 				return ErrInvalid
 			}
 			if g.Ref != "" && g.Ref != change.Ref {

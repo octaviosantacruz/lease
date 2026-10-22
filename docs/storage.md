@@ -1,8 +1,8 @@
 # Persistencia local e intentos durables
 
 Implementación de `LEASE-003`, 22/10/2026. Es infraestructura del broker;
-no implementa políticas, aprobación, concesión ni revocación reales.
-`grant.Next` y `reconcile.Diff` siguen como ejercicios del dueño.
+el ejecutor y su política viven en `internal/broker`. El núcleo y la CLI ya
+están implementados; ver [README](../README.md).
 
 ## Uso explícito
 
@@ -14,11 +14,11 @@ lease_lab_dir="$(mktemp -d /tmp/lease-lab.XXXXXX)"
 /tmp/lease db verify --db "$lease_lab_dir/state.sqlite"
 ```
 
-`status` no crea una base ausente. `up` es la única acción que inicializa
-el esquema. `store.Open` no migra automáticamente: exige una base existente,
+`status` no crea una base ausente. `up` inicializa
+el esquema; `init` y `demo` también lo hacen como acciones explícitas. `store.Open` no migra automáticamente: exige una base existente,
 esquema reconocido y auditoría consistente. El archivo nuevo tiene permisos
 `0600`; la ruta no tiene valor implícito y los symlinks se rechazan.
-Los comandos de acceso de `LEASE-005` todavía no están implementados.
+Los comandos de acceso y el worker se describen en el README.
 
 La migración SQL se incorpora con `go:embed` y queda registrada con SHA-256.
 No se modifican migraciones aplicadas. Una base ajena, una versión desconocida
@@ -29,7 +29,7 @@ la consistencia de concesiones y auditoría. Ninguno demuestra acceso real.
 ## Modelo y transacciones
 
 - `entitlements`: proveedor, destino, rol y TTL máximo. Alta inmutable; un
-  cambio de configuración usa otro ID. Aún no hay administración de políticas.
+  cambio de configuración usa otro ID. La política de solicitantes/aprobadores viene de un archivo local.
 - `grants`: solicitud, principal, motivo, ventana de acceso explícita,
   snapshot del entitlement, estado, versión y referencia del proveedor.
 - `events`: snapshot de cada alta/transición, actor e instante aportados por
@@ -38,13 +38,13 @@ la consistencia de concesiones y auditoría. Ninguno demuestra acceso real.
 
 Crear una solicitud sólo produce `requested`. No autoriza acceso. Su ventana
 absoluta se aporta explícitamente y debe estar vigente al crearla y respetar
-el TTL máximo; no se prolonga automáticamente al esperar aprobación. El futuro
-servicio debe definir su política de ventanas antes de exponer solicitudes.
+el TTL máximo; no se prolonga automáticamente al esperar aprobación.
+El broker conserva esa ventana absoluta también después de aprobar.
 
-`Advance` consulta la máquina del dueño, comprueba la versión esperada y
+`Advance` consulta la máquina de estados pura, comprueba la versión esperada y
 persiste estado más evento en una transacción. Sólo devuelve éxito después
-del commit. El futuro ejecutor debe llamar al proveedor **después** de ese
-éxito. No hay un ejecutor implementado aquí ni una llamada real a proveedores.
+del commit. El ejecutor llama al proveedor **después** de ese
+éxito. El paquete store no llama a proveedores por sí mismo.
 Un error al escribir evidencia revierte también el estado. Si el commit falla
 o su resultado es incierto, no se debe conceder acceso; se recupera el intento.
 
@@ -71,7 +71,7 @@ ni un broker distribuido. No se prueban cortes físicos de energía.
 `Recoverable` verifica primero la evidencia dentro de la misma transacción
 y devuelve **todos** los estados no terminales. Incluye `granting`, `revoking`
 y concesiones vencidas. No supone que un intento quedó sin aplicar, no vuelve
-a conceder acceso y no ejecuta `reconcile.Diff` por el dueño.
+a conceder acceso. La recuperación y limpieza corresponden al broker.
 
 Cada evento contiene secuencia, actor, instante y snapshot del grant. SHA-256
 usa un prefijo de formato y enlaza el hash previo. La verificación comprueba
@@ -99,10 +99,20 @@ Close ni defers antes y después del commit, sobre bases descartables.
 
 Los tests de almacenamiento inyectan resultados del núcleo mediante un campo
 privado. No implementan la tabla de transiciones. El constructor público
-siempre conecta `grant.Next`: mientras éste siga vacío, las transiciones de
-producción se rechazan. Hay una prueba que contrasta explícitamente esa unión.
-El gate completo sigue rojo por `LEASE-001`/`LEASE-002`, como exige AGENTS.md;
-no se omiten ni se marcan skipped esos ejercicios.
+siempre conecta `grant.Next`, ya implementado junto con `reconcile.Diff` por
+pedido explícito del dueño. El gate completo ya pasa; se conservan las pruebas
+originales y los dobles privados de almacenamiento.
+
+`CreateCleanup` adopta un objeto huérfano en una transacción: registra alta y
+transición a `revoking` con referencia. Un crash no puede dejar una solicitud
+de limpieza como permiso aprobable. Cada fallo de revocación registra una
+transición `revoking → revoking` con evento `fail`, que permite contar intentos.
+
+`LockExecutor` usa una segunda SQLite (`.executor.db`) con una transacción
+IMMEDIATE mantenida durante los efectos. Se libera al cerrar o salir el proceso;
+no hay archivo de PID que desbloquear a mano. El worker CLI libera ese lock
+entre ciclos. La consola mantiene un solo runtime y serializa operaciones con
+un mutex. Los locks sólo coordinan operaciones que usan este broker/local DB.
 
 Idiomas Go usados: `defer tx.Rollback()` cubre retornos tempranos; interfaces
 pequeñas permiten compartir lectura de DB/Tx; `errors.Is` conserva errores

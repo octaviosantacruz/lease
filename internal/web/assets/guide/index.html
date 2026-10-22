@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Instalación y alcance | Lease</title>
+    <meta
+      name="description"
+      content="Cómo ejecutar el laboratorio de Lease y probar el broker local de acceso temporal."
+    />
+    <link rel="stylesheet" href="/site.css" />
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <a class="skip" href="#contenido">Saltar al contenido</a>
+    <header class="site-header wrap">
+      <a class="brand" href="/">lease<span aria-hidden="true">↗</span></a>
+      <nav aria-label="Principal">
+        <a class="button small" href="/console/">Abrir laboratorio ↗</a>
+      </nav>
+    </header>
+    <main class="guide wrap" id="contenido">
+      <h1>Primero, un laboratorio.</h1>
+      <p>
+        La web y la consola vienen dentro del binario Go. El laboratorio usa un
+        destino simulado persistente: sus permisos nunca habilitan acceso a
+        bases, servicios o cuentas reales.
+      </p>
+      <h2>Ejecutar</h2>
+      <pre><code>go build -o lease ./cmd/lease
+./lease demo --dir ./lease-lab \
+  --listen 127.0.0.1:8789 --seed</code></pre>
+      <p>
+        Abrí la dirección que imprime el comando. <code>--seed</code> crea
+        ejemplos sólo si el libro está vacío. Al reiniciar conserva las
+        solicitudes y reconcilia los permisos pendientes. Ctrl+C detiene el
+        proceso.
+      </p>
+      <h2>Probar el recorrido</h2>
+      <ol>
+        <li>
+          En la consola, elegí a Inés y solicitá acceso con una justificación.
+        </li>
+        <li>Cambiá al rol simulado de Mateo. Aprobá o denegá la solicitud.</li>
+        <li>Revisá el estado activo, su ventana de tiempo y la evidencia.</li>
+        <li>
+          Revocá el acceso o usá una duración de 10 segundos para observar el
+          vencimiento.
+        </li>
+      </ol>
+      <p>
+        El selector de personas es una simulación de roles. No autentica
+        usuarios y la consola sólo admite el proveedor de laboratorio y
+        conexiones loopback.
+      </p>
+      <h2>Operar desde la terminal</h2>
+      <pre><code>./lease init --db ./broker.sqlite --config examples/lab.json
+./lease request --db ./broker.sqlite --config examples/lab.json \
+  --as user:ines --entitlement analytics-read \
+  --ttl 5m --reason INC-284
+./lease list --db ./broker.sqlite --config examples/lab.json</code></pre>
+      <p>
+        Usá el ID devuelto con <code>approve --id ID --as user:mateo</code> o
+        <code>revoke --id ID --as user:ines</code>, pasando el mismo
+        <code>--db</code> y <code>--config</code>. <code>run</code> ejecuta el
+        worker continuo; <code>reconcile</code> ejecuta una pasada. El worker
+        libera el lock entre pasadas para que los comandos locales puedan
+        operar. Sólo una operación actúa sobre el destino a la vez.
+      </p>
+      <h2>PostgreSQL</h2>
+      <p>
+        El adaptador crea un rol temporal NOLOGIN y lo asigna a un login
+        existente mediante un mapeo explícito. Sólo observa los objetos de su
+        namespace. Al revocar, retira las membresías y termina las sesiones de
+        ese login en el clúster, incluidas las que no usaron Lease.
+      </p>
+      <p>
+        Usá primero <code>scripts/test-postgres.sh</code>: crea y destruye un
+        clúster propio sin tocar las bases del host. El contrato, la
+        configuración y sus límites están en
+        <code>docs/postgres.md</code> dentro del repositorio.
+      </p>
+      <h2>Qué protege cada límite</h2>
+      <ul>
+        <li>
+          La CLI confía en el usuario del sistema operativo.
+          <code>--as</code> atribuye decisiones; no demuestra identidad.
+        </li>
+        <li>
+          La política limita solicitantes, aprobadores y duración. No hay
+          autoaprobación en este corte.
+        </li>
+        <li>
+          El worker debe permanecer disponible para revocar en plazo. La caída
+          del broker puede extender un permiso.
+        </li>
+        <li>
+          Los hashes detectan inconsistencias locales. No son una firma ni un
+          anclaje externo.
+        </li>
+        <li>
+          OIDC, otros proveedores y una consola para destinos reales siguen
+          pendientes.
+        </li>
+      </ul>
+      <h2>Servir sólo la web</h2>
+      <pre><code>./lease site export --out ./lease-site</code></pre>
+      <p>
+        Exporta HTML, CSS, JavaScript e imágenes para hosting estático. La
+        consola necesita el comando <code>demo</code> para operar; al abrirla
+        sin backend muestra instrucciones. Este comando prepara archivos y no
+        publica el sitio.
+      </p>
+      <p><a href="/">Volver a Lease</a></p>
+    </main>
+  </body>
+</html>

@@ -8,9 +8,9 @@ import (
 
 // Key identifies one privilege on a target, independent of any grant.
 type Key struct {
-	Target    string // e.g. "postgres/custodia"
-	Principal string // e.g. "user:octavio" or "agent:triage"
-	Role      string // e.g. "readonly"
+	Target    string // Target and the other names retain the original snapshot encoding.
+	Principal string
+	Role      string
 }
 
 // GrantSpec is what the broker asks a provider to apply.
@@ -30,8 +30,10 @@ type Handle struct {
 
 // Actual is a privilege that exists on the target right now.
 type Actual struct {
-	Key Key
-	Ref string
+	Key     Key    `json:"key"`
+	Ref     string `json:"ref"`
+	GrantID string `json:"grant_id,omitempty"`
+	Broken  bool   `json:"broken,omitempty"` // owned object exists with unexpected memberships or flags
 }
 
 // Caps describes what a provider can guarantee.

@@ -1,4 +1,4 @@
-// Command lease currently exposes explicit local database maintenance only.
+// Command lease exposes local policy, access workflows and database maintenance.
 package main
 
 import (
@@ -8,16 +8,30 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/octaviosantacruz/lease/internal/store"
 )
 
-func main() { os.Exit(run(context.Background(), os.Args[1:], os.Stdout, os.Stderr)) }
+func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	os.Exit(run(ctx, os.Args[1:], os.Stdout, os.Stderr))
+}
 
 func run(ctx context.Context, args []string, out, stderr io.Writer) int {
+	if len(args) > 0 {
+		switch args[0] {
+		case "demo", "site":
+			return webCommand(ctx, args, out, stderr)
+		case "init", "request", "approve", "deny", "revoke", "list", "events", "reconcile", "run":
+			return access(ctx, args, out, stderr)
+		}
+	}
 	if len(args) < 2 || args[0] != "db" || (args[1] != "up" && args[1] != "status" && args[1] != "verify") {
 		fmt.Fprintln(stderr, "usage: lease db <up|status|verify> --db PATH")
-		fmt.Fprintln(stderr, "access request/approval/revocation commands are not implemented yet")
+		fmt.Fprintln(stderr, "also: lease <init|request|approve|deny|revoke|list|events|reconcile|run> --db PATH --config FILE")
 		return 2
 	}
 	// Un FlagSet por subcomando evita estado global y permite probar la CLI sin os.Exit.

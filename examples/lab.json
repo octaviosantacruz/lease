@@ -1,0 +1,31 @@
+{
+  "entitlements": [
+    {
+      "id": "analytics-read",
+      "provider": "lab",
+      "target": "lab/analytics",
+      "role": "readonly",
+      "max_ttl": "30m",
+      "requesters": ["user:ines", "agent:diagnostico"],
+      "approvers": ["user:mateo"]
+    },
+    {
+      "id": "payments-read",
+      "provider": "lab",
+      "target": "lab/payments",
+      "role": "readonly",
+      "max_ttl": "15m",
+      "requesters": ["user:ines"],
+      "approvers": ["user:mateo"]
+    },
+    {
+      "id": "logs-investigate",
+      "provider": "lab",
+      "target": "lab/logs",
+      "role": "investigator",
+      "max_ttl": "5m",
+      "requesters": ["agent:diagnostico", "user:ines"],
+      "approvers": ["user:mateo"]
+    }
+  ]
+}

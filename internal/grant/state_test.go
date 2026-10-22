@@ -65,3 +65,19 @@ func TestTerminal(t *testing.T) {
 		}
 	}
 }
+
+func TestExtendedCleanupTransitions(t *testing.T) {
+	if got, err := Next(Requested, Revoke); err != nil || got != Revoking {
+		t.Fatal(got, err)
+	}
+	if got, err := Next(Approved, Deny); err != nil || got != Denied {
+		t.Fatal(got, err)
+	}
+	for _, s := range []State{Denied, Revoked} {
+		for _, ev := range []Event{NeedsApproval, AutoApprove, Approve, Deny, StartGrant, Granted, Fail, Expire, Revoke, RevokeDone} {
+			if _, err := Next(s, ev); err == nil {
+				t.Fatal("terminal resurrected", s, ev)
+			}
+		}
+	}
+}

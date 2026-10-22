@@ -68,3 +68,14 @@ func samePlan(a, b Plan) bool {
 	}
 	return reflect.DeepEqual(norm(a), norm(b))
 }
+
+func TestOverlappingLeasesDoNotHideExpiredObject(t *testing.T) {
+	a := active
+	b := active
+	b.GrantID = "g2"
+	b.ExpiresAt = now
+	got := Diff([]Expected{a, b}, []provider.Actual{{GrantID: a.GrantID, Key: keyRO, Ref: "active"}, {GrantID: b.GrantID, Key: keyRO, Ref: "expired"}}, now)
+	if len(got.Revoke) != 1 || got.Revoke[0].Ref != "expired" || len(got.Missing) != 0 {
+		t.Fatal(got)
+	}
+}

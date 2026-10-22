@@ -27,11 +27,27 @@ type Plan struct {
 
 // Diff builds the plan. A grant with ExpiresAt equal to now is expired.
 //
-// LEASE-002 — the maintainer writes this. Cases are in
-// docs/architecture/design.md and diff_test.go.
-// Hint: index the expected grants in a map[provider.Key]Expected first; a
-// struct of comparable fields can be a map key. Use now.Before(e.ExpiresAt)
-// for "still active".
+// GrantID separa dos leases simultáneos para el mismo permiso. Si un adaptador
+// antiguo no devuelve ID, sólo puede compararse el permiso agregado por Key.
 func Diff(expected []Expected, actual []provider.Actual, now time.Time) Plan {
-	return Plan{}
+	var plan Plan
+	present := make(map[string]bool)
+	for _, a := range actual {
+		allowed := false
+		for _, e := range expected {
+			if !a.Broken && e.Key == a.Key && (a.GrantID == "" || a.GrantID == e.GrantID) && now.Before(e.ExpiresAt) {
+				allowed = true
+				present[e.GrantID] = true
+			}
+		}
+		if !allowed {
+			plan.Revoke = append(plan.Revoke, a)
+		}
+	}
+	for _, e := range expected {
+		if now.Before(e.ExpiresAt) && !present[e.GrantID] {
+			plan.Missing = append(plan.Missing, e)
+		}
+	}
+	return plan
 }

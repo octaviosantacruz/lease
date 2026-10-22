@@ -550,3 +550,81 @@ func TestTTLDoesNotSaturateDuration(t *testing.T) {
 		t.Fatal("invalid long window was persisted")
 	}
 }
+
+func TestCleanupAdoptionIsAtomicAndNeverApprovable(t *testing.T) {
+	s, path := openTestStore(t)
+	g, err := s.CreateCleanup(testContext, request("cleanup"), "orphan-ref", "system:reconciler", testNow)
+	if err != nil || g.State != grant.Revoking || g.Version != 2 || g.Ref != "orphan-ref" {
+		t.Fatal(g, err)
+	}
+	if countEvents(t, s) != 2 {
+		t.Fatal("adoption must include both events")
+	}
+	if err = s.Verify(testContext); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := Open(testContext, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	g, err = reopened.Get(testContext, g.ID)
+	if err != nil || g.State != grant.Revoking {
+		t.Fatal(g, err)
+	}
+	if _, err = reopened.Advance(testContext, Change{GrantID: g.ID, Version: g.Version, Event: grant.Approve, Actor: "user:reviewer"}, testNow); err == nil {
+		t.Fatal("cleanup became approvable")
+	}
+}
+
+func TestCleanupRollsBackIfSecondEventFails(t *testing.T) {
+	s, _ := openTestStore(t)
+	_, err := s.db.Exec("CREATE TRIGGER fail_adoption BEFORE INSERT ON events WHEN NEW.sequence = 2 BEGIN SELECT RAISE(ABORT, 'injected'); END")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.CreateCleanup(testContext, request("cleanup"), "orphan", "system:reconciler", testNow); err == nil {
+		t.Fatal("failed adoption committed")
+	}
+	if countEvents(t, s) != 0 {
+		t.Fatal("partial evidence remains")
+	}
+	if _, err = s.Get(testContext, "cleanup"); !errors.Is(err, ErrNotFound) {
+		t.Fatal("partial request remains", err)
+	}
+}
+func TestExecutorLockSerializesEffects(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "broker.sqlite")
+	unlock, err := LockExecutor(testContext, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+	acquired := make(chan func(), 1)
+	failed := make(chan error, 1)
+	go func() {
+		release, err := LockExecutor(testContext, path)
+		if err != nil {
+			failed <- err
+			return
+		}
+		acquired <- release
+	}()
+	select {
+	case release := <-acquired:
+		release()
+		t.Fatal("second executor entered while first held the lock")
+	case err := <-failed:
+		t.Fatal(err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	unlock()
+	select {
+	case release := <-acquired:
+		release()
+	case err := <-failed:
+		t.Fatal(err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("lock did not release")
+	}
+}

@@ -1,8 +1,9 @@
 # Lease — design
 
-Status: proposed, updated 2026-10-22. Workspace idea `IDEA-009`.
-Storage infrastructure is implemented separately in [storage.md](../storage.md);
-policy, providers and the maintainer core exercises are not complete.
+Status: local MVP implemented, updated 2026-10-22. Workspace idea `IDEA-009`.
+Core completion authorized explicitly by the owner on 22/10. See
+[README](../../README.md), [storage](../storage.md) and [PostgreSQL scope](../postgres.md).
+OIDC, external workload identity and public deployment remain unimplemented.
 
 ## Goal
 
@@ -36,11 +37,22 @@ requested ──NeedsApproval──► pending_approval ──Approve──► a
 
 Terminal states: `denied`, `revoked`.
 
+The current policy is a local JSON allowlist: requesters and approvers per
+immutable entitlement, mandatory reason, maximum TTL and no self-approval. It
+never auto-approves. CLI actor attribution trusts the OS operator. The web actor
+selector is a fictional lab simulation; neither proves a human identity.
+
 - **A failed grant goes to `revoking`, not to an error state.** The provider may
   have applied part of it; fail closed and clean up.
-- A failed revoke stays in `revoking` with an attempt counter and an alert; it is
+- A failed revoke records `Fail` (`revoking` to `revoking`); its events count attempts, and the worker reports failure. It is
   retried, never abandoned.
 - `Next(from, event)` is a pure function; anything not in the table is an error.
+- Three explicit additions support execution: `approved + Deny → denied` for
+  an expired/unusable approval, `requested + Revoke → revoking` for atomic
+  orphan adoption, and `revoking + Fail → revoking` for retry evidence.
+- The executor compares GrantID as well as Key. Two overlapping leases cannot
+  hide the expired instance behind the live one. Owned objects with unexpected
+  direct memberships/flags are revoked; missing privileges are not recreated.
 
 ## Revocation design: three layers
 
@@ -93,13 +105,13 @@ type Provider interface {
 }
 ```
 
-Two grant modes:
+Two grant modes in the design (only elevation is implemented in PostgreSQL):
 
 - **Ephemeral credential** (default, purest ZSP): create a temporary user or
   certificate and destroy it afterwards.
 - **Elevation:** add a role to an existing account for the lease duration.
 
-Planned providers, in order: PostgreSQL, SSH certificates, temporary sudoers,
+Implemented: persistent lab and PostgreSQL elevation. Planned: SSH certificates, temporary sudoers,
 Kubernetes RoleBinding, GitHub team, AWS.
 
 ## Optional AI decision
@@ -122,8 +134,10 @@ decommission (`IDEA-006`) on top of the reconciler.
 Single binary, SQLite. Entitlements, grants and hash-chained events are now
 persisted by `internal/store` with explicit migrations and atomic state/event
 commits. [Storage contract](../storage.md). There is no external anchor and no
-shared code with Switchboard. The future executor must persist `granting` or
-`revoking` before calling a provider; storage alone does not implement that executor.
+shared code with Switchboard. The executor persists `granting` or
+`revoking` before calling a provider and recovers uncertain grants by cleanup.
+Orphan adoption records Requested and Revoking atomically. Executor locks serialize
+effects across local CLI processes; the web console uses only the lab provider.
 
 ## Relationship with other projects
 
