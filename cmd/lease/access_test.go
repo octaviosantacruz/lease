@@ -55,7 +55,7 @@ func TestLocalCLIWorkflowAndWatchCancellation(t *testing.T) {
 	if err := json.Unmarshal([]byte(output), &g); err != nil || g.State != grant.Revoked {
 		t.Fatal(g, err)
 	}
-	for _, command := range []string{"list", "events", "reconcile"} {
+	for _, command := range []string{"check", "list", "events", "reconcile"} {
 		if code, _ = invoke(command); code != 0 {
 			t.Fatal(command)
 		}

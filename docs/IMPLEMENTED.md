@@ -97,3 +97,35 @@ Estos resultados prueban el corte **local y de laboratorio**. No demuestran
 identidad verificada, operación PostgreSQL con permisos restringidos,
 vencimiento durante una caída, inventario total del clúster ni exposición
 pública segura. Esos límites están en README, contrato del proveedor y pendientes.
+
+
+## LEASE-007 — avance, sin cierre — 2026-10-22
+
+Receta SQL explícita para un operador NOSUPERUSER/CREATEROLE/NOINHERIT, con
+ADMIN-only sobre el rol base y pg_signal_backend. `lease check` verifica registro
+y requisitos sin escribir eventos; init lo consulta antes de registrar contratos.
+Grant vuelve a comprobar atributos y caminos de membresías antes de DDL.
+La apertura para recuperación no bloquea la limpieza de permisos que se volvieron
+inseguros. Configuración y alcance en [postgres-operator.md](postgres-operator.md).
+
+Evidencia observada durante este avance:
+
+- El recorrido positivo con operador separado pasó en PostgreSQL 18 descartable:
+  aprobación, acceso, vencimiento, cierre de sesión SET ROLE, pérdida de permiso
+  en conexión nueva y recuperación de una concesión con resultado perdido.
+- Esa corrida completa todavía salió con error por el caso de opciones de escape:
+  el fixture construía una URI con `+` para espacios. El parser de PostgreSQL/pgx
+  conserva ese signo. Se corrigió a `%20` y se agregó regresión sin conexión.
+- Pasan once casos de la consulta recursiva y sus reglas sobre un modelo de
+  catálogo SQLite. No sustituyen la integración PostgreSQL real. La matriz
+  ampliada de rutas peligrosas está escrita pero pendiente de ejecutar allí.
+- `scripts/verify.sh` pasa con race; los casos de integración PostgreSQL se
+  omiten cuando no se usa su script. No presentar ese gate como prueba del servidor.
+- La repetición con clúster fue bloqueada por el sistema automático de revisión
+  de permisos: cuota agotada, sin evaluación de seguridad de la acción. No se
+  intentó eludirla ni se usaron bases o servicios existentes.
+- El dueño decidió dejar pendiente esa repetición el 22/10 y pidió conservar
+  el avance en un commit para retomarlo después.
+
+Sin instalación productiva, publicación, alertas operativas ni cierre de
+`LEASE-007`. Este avance continúa el corte local `d85637c`.

@@ -119,3 +119,9 @@ func (p *Provider) Observe(ctx context.Context, target string) ([]provider.Actua
 	}
 	return result, rows.Err()
 }
+
+// Check verifies that the isolated target can still read its privilege table.
+func (p *Provider) Check(ctx context.Context) error {
+	var count int
+	return p.db.QueryRowContext(ctx, "SELECT count(*) FROM privileges").Scan(&count)
+}

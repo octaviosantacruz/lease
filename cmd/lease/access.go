@@ -99,6 +99,8 @@ func access(ctx context.Context, args []string, out, stderr io.Writer) int {
 	}
 	var result any
 	switch args[0] {
+	case "check":
+		result, err = r.Check(ctx)
 	case "request":
 		result, err = r.Request(ctx, *ent, *actor, *reason, *ttl)
 	case "approve":

@@ -40,7 +40,8 @@ servidor exige loopback numérico, Host exacto y origen propio para mutaciones.
 ./lease run --db ./broker.sqlite --config examples/lab.json --interval 2s
 ```
 
-También existen `deny`, `events` y `reconcile` (una pasada). `run` libera su
+También existen `deny`, `events`, `check` (registro y requisitos de proveedores)
+y `reconcile` (una pasada). `run` libera su
 lock entre pasadas; los comandos pueden operar entre ellas. Una operación larga
 puede hacer que otra CLI devuelva un error de lock; no hay ejecución concurrente
 de efectos. El worker recarga conexiones y reintenta tras errores, pero conserva
@@ -62,6 +63,10 @@ sobre logins existentes; no genera ni distribuye contraseñas. Revoca membresía
 termina **todas las sesiones del login afectado en el clúster** y elimina el rol
 administrado. Sólo observa su namespace. El modo de credencial efímera sigue
 pendiente; este primer adaptador implementa elevación.
+
+Avance actual de `LEASE-007`: [receta del operador sin superusuario](docs/postgres-operator.md)
+y preflight de membresías. La ampliación final tiene pruebas locales verdes;
+la repetición completa contra PostgreSQL sigue pendiente, detallada en ese documento.
 
 La revocación en plazo depende del worker. `NativeExpiry=false`: una caída del
 broker puede extender el acceso. La integración se verifica sin usar bases del

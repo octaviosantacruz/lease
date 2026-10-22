@@ -41,14 +41,17 @@ máximo de dos conexiones y un timeout de conexión de cinco segundos.
 Los logins mapeados deben existir, permitir LOGIN y ser distintos del operador,
 sin SUPERUSER, CREATEROLE, CREATEDB, REPLICATION ni BYPASSRLS. Los roles base
 no pueden tener esos atributos ni LOGIN. Estos controles no prueban que sus
-membresías transitivas o privilegios sobre objetos sean mínimos: el operador debe
-revisarlos. El adaptador nunca concede SQL formado con identificadores sin citar.
+privilegios sobre objetos sean mínimos: el operador debe
+revisarlos. La ampliación de `LEASE-007` recorre membresías y rechaza rutas
+privilegiadas o delegables antes de Grant; ver su estado de verificación abajo. El adaptador nunca concede SQL formado con identificadores sin citar.
 
 El operador necesita crear y eliminar los roles temporales, administrar las
 membresías correspondientes y terminar las sesiones de los logins mapeados.
-La integración usa un superusuario **sólo en el clúster descartable**. Una receta
-restringida de permisos de operador para instalaciones reales y su gate dedicado
-queda pendiente; no se recomienda un superusuario para un servicio desplegado.
+La integración usa un superusuario sólo para preparar el clúster descartable.
+La [receta del operador](postgres-operator.md) opera el adaptador con un login
+separado sin superusuario. El recorrido positivo pasó; la matriz final de
+controles adicionales está pendiente de repetición. No es una instalación
+productiva validada ni un sandbox que limite CREATEROLE al namespace.
 
 No cambiar namespace/destino ni eliminar los contratos del catálogo mientras
 haya grants recuperables u objetos administrados. Los entitlements son inmutables
@@ -77,7 +80,8 @@ no reconocible nunca se borra por el prefijo solamente.
 ## Observación y drift
 
 Observe inventaría sólo roles del namespace dedicado. Comprueba metadata,
-atributos y las membresías directas esperadas. Un objeto propio con membresías
+atributos y las membresías directas esperadas. La ampliación en curso también
+rechaza rutas privilegiadas o delegables desde el login o el rol base. Un objeto propio con membresías
 o atributos inesperados se marca `Broken`: el broker revoca el grant y lo
 reporta como incompleto. Un objeto ausente se reporta; no se vuelve a conceder.
 Los objetos huérfanos reconocibles se adoptan atómicamente como intentos de
@@ -85,7 +89,8 @@ limpieza `revoking`, sin convertirse en solicitudes aprobables.
 
 Un rol con prefijo pero metadata inválida produce error para revisión manual.
 La observación no inventaría todos los privilegios permanentes de un clúster,
-los roles base ni rutas transitivas ajenas al namespace. No es una medición
+todos los privilegios sobre objetos de los roles base. El control de
+membresías no pretende inventariar ni eliminar todas las rutas ajenas a Lease. No es una medición
 completa de zero standing privilege.
 
 ## Vencimiento y fallos
@@ -113,3 +118,13 @@ acceso en sesiones nuevas, revocación repetida y protección de un rol ajeno.
 Los casos del broker cubren resultado desconocido, reintento de revocación y
 limpieza tras reinicio con un destino simulado persistente. La prueba real no
 simula corte eléctrico ni demuestra todos los fallos de un servidor remoto.
+
+
+## Preflight y estado del operador
+
+`lease check --db PATH --config FILE` verifica evidencia local y requisitos del
+proveedor sin modificar privilegios ni eventos. `Grant` repite sus controles,
+mientras `Revoke` conserva acceso a la limpieza de objetos propios cuando la
+política de los sujetos cambió. Ver [receta, límites y evidencia](postgres-operator.md).
+Esta ampliación no se presenta como integración final verde hasta repetir
+`scripts/test-postgres.sh` con todos sus nuevos casos.

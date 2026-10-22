@@ -35,6 +35,9 @@ func (b *Broker) Initialize(ctx context.Context) error {
 	if err := b.Config.Validate(); err != nil {
 		return err
 	}
+	if _, err := b.Check(ctx); err != nil {
+		return err
+	}
 	snapshot, err := b.Store.Snapshot(ctx)
 	if err != nil {
 		return err

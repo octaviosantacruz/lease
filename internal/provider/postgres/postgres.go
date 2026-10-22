@@ -65,21 +65,14 @@ func Open(ctx context.Context, dsn string, c Config) (*Provider, error) {
 	}
 	p.operator = operator
 	for _, login := range c.Principals {
-		var super, createRole, createDB, repl, bypass, canLogin bool
-		err = db.QueryRowContext(ctx, "SELECT rolsuper,rolcreaterole,rolcreatedb,rolreplication,rolbypassrls,rolcanlogin FROM pg_roles WHERE rolname=$1", login).Scan(&super, &createRole, &createDB, &repl, &bypass, &canLogin)
-		if err != nil || login == operator || super || createRole || createDB || repl || bypass || !canLogin {
+		if login == operator {
 			db.Close()
-			return nil, errors.New("postgres: principal must be an unprivileged login distinct from operator")
+			return nil, errors.New("postgres: principal must differ from operator")
 		}
 	}
-	for _, role := range c.Roles {
-		var dangerous bool
-		err = db.QueryRowContext(ctx, "SELECT rolsuper OR rolcreaterole OR rolcreatedb OR rolreplication OR rolbypassrls OR rolcanlogin FROM pg_roles WHERE rolname=$1", role).Scan(&dangerous)
-		if err != nil || dangerous {
-			db.Close()
-			return nil, errors.New("postgres: entitlement role must be an unprivileged NOLOGIN role")
-		}
-	}
+	// No bloquear la apertura por cambios en los sujetos: la recuperación debe
+	// poder retirar permisos existentes. Check y Grant controlan nuevas concesiones.
+
 	return p, nil
 }
 func (p *Provider) Close() error                { return p.db.Close() }
@@ -107,6 +100,10 @@ func (p *Provider) begin(ctx context.Context) (*sql.Tx, error) {
 		tx.Rollback()
 		return nil, err
 	}
+	if _, err = tx.ExecContext(ctx, "SET LOCAL createrole_self_grant = ''"); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
 	if _, err = tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1,0))", p.config.Namespace); err != nil {
 		tx.Rollback()
 		return nil, err
@@ -125,6 +122,15 @@ func (p *Provider) Grant(ctx context.Context, g provider.GrantSpec) (provider.Ha
 		return provider.Handle{}, err
 	}
 	defer tx.Rollback()
+	if err = p.checkOperator(ctx, tx, p.config.Roles[g.Key.Role]); err != nil {
+		return provider.Handle{}, err
+	}
+	if err = checkRole(ctx, tx, p.config.Principals[g.Key.Principal], true); err != nil {
+		return provider.Handle{}, err
+	}
+	if err = checkRole(ctx, tx, p.config.Roles[g.Key.Role], false); err != nil {
+		return provider.Handle{}, err
+	}
 	ref := p.ref(g.GrantID)
 	body, _ := json.Marshal(metadata{GrantID: g.GrantID, Key: g.Key, ExpiresAt: g.ExpiresAt.UTC(), Login: p.config.Principals[g.Key.Principal], Role: p.config.Roles[g.Key.Role]})
 	var comment string
@@ -137,8 +143,8 @@ func (p *Provider) Grant(ctx context.Context, g provider.GrantSpec) (provider.Ha
 		statements := []string{
 			"CREATE ROLE " + ident(ref) + " NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS",
 			"COMMENT ON ROLE " + ident(ref) + " IS " + literal(string(body)),
-			"GRANT " + ident(p.config.Roles[g.Key.Role]) + " TO " + ident(ref),
-			"GRANT " + ident(ref) + " TO " + ident(p.config.Principals[g.Key.Principal]),
+			"GRANT " + ident(p.config.Roles[g.Key.Role]) + " TO " + ident(ref) + " WITH ADMIN FALSE, INHERIT TRUE, SET TRUE",
+			"GRANT " + ident(ref) + " TO " + ident(p.config.Principals[g.Key.Principal]) + " WITH ADMIN FALSE, INHERIT TRUE, SET TRUE",
 		}
 		for _, statement := range statements {
 			if _, err = tx.ExecContext(ctx, statement); err != nil {
@@ -243,9 +249,22 @@ func (p *Provider) Observe(ctx context.Context, target string) ([]provider.Actua
  NOT (rolsuper OR rolcreaterole OR rolcreatedb OR rolreplication OR rolbypassrls OR rolcanlogin) AND rolinherit
  AND (SELECT count(*)=1 AND bool_and(roleid=(SELECT oid FROM pg_roles WHERE rolname=$2)) FROM pg_auth_members WHERE member=r.oid)
  AND (SELECT count(*)=1 AND bool_and(member=(SELECT oid FROM pg_roles WHERE rolname=$3) AND inherit_option AND set_option AND NOT admin_option) FROM pg_auth_members WHERE roleid=r.oid AND member<>(SELECT oid FROM pg_roles WHERE rolname=$4))
+  AND NOT EXISTS(SELECT 1 FROM pg_auth_members WHERE roleid=r.oid AND member=(SELECT oid FROM pg_roles WHERE rolname=$4) AND (NOT admin_option OR inherit_option OR set_option))
  FROM pg_roles r WHERE rolname=$1`, ref, m.Role, m.Login, p.operator).Scan(&safe)
 		if err != nil {
 			return nil, err
+		}
+		if err = checkRole(ctx, p.db, m.Role, false); err != nil {
+			if !errors.Is(err, ErrUnsafe) {
+				return nil, err
+			}
+			safe = false
+		}
+		if err = checkRole(ctx, p.db, m.Login, true); err != nil {
+			if !errors.Is(err, ErrUnsafe) {
+				return nil, err
+			}
+			safe = false
 		}
 		actual = append(actual, provider.Actual{GrantID: m.GrantID, Key: m.Key, Ref: ref, Broken: !safe})
 	}

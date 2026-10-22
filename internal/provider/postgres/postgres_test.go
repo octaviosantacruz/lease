@@ -3,6 +3,7 @@ package postgres_test
 import (
 	"context"
 	"database/sql"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,8 +47,10 @@ func TestDisposablePostgresContract(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	bootstrapOperator(t, ctx, dsn, "fixture_operator", "fixture_reader")
+	opDSN := operatorDSN(t, dsn, "fixture_operator")
 	config := pg.Config{Target: "postgres/disposable", Namespace: "lslab", Principals: map[string]string{"user:analyst": "fixture_analyst"}, Roles: map[string]string{"readonly": "fixture_reader"}}
-	p, err := pg.Open(ctx, dsn, config)
+	p, err := pg.Open(ctx, opDSN, config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +136,21 @@ func TestDisposablePostgresContract(t *testing.T) {
 	logical := "user:analyst'\\; DROP ROLE unrelated; --"
 	injectedConfig := config
 	injectedConfig.Principals = map[string]string{logical: "fixture_analyst"}
-	q, err := pg.Open(ctx, dsn+" options='-c standard_conforming_strings=off'", injectedConfig)
+	optionDSN, _ := url.Parse(opDSN)
+	options := optionDSN.Query()
+	options.Set("options", "-c standard_conforming_strings=off")
+	optionDSN.RawQuery = postgresQuery(options)
+	optionConfig, err := pgx.ParseConfig(optionDSN.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	optionProbe := stdlib.OpenDB(*optionConfig)
+	defer optionProbe.Close()
+	var stringsMode string
+	if err = optionProbe.QueryRowContext(ctx, "SHOW standard_conforming_strings").Scan(&stringsMode); err != nil || stringsMode != "off" {
+		t.Fatalf("fixture startup escaping: %s, %v", stringsMode, err)
+	}
+	q, err := pg.Open(ctx, optionDSN.String(), injectedConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
