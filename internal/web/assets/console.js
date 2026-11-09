@@ -51,8 +51,14 @@ const esc = (value) =>
         c
       ],
   );
-const actor = () => $("#actor").value;
-const person = (id) => names[id] || id;
+// verified is set when the server runs behind Ozal: the actor is the
+// identity Ozal asserted and the browser cannot choose it.
+let verified = null;
+const actor = () => verified?.principal ?? $("#actor").value;
+const person = (id) =>
+  verified && id === verified.principal && verified.name
+    ? verified.name
+    : names[id] || id;
 const now = () => Date.now() + serverOffset;
 const date = (value) =>
   new Intl.DateTimeFormat("es-AR", {
@@ -120,7 +126,7 @@ function requests() {
       allowedRequests().length ? requestButton() : "",
     ) +
     `<div class="metrics"><div class="metric"><span>Accesos activos</span><strong id="active-count">${all.filter((g) => g.state === "active" && Date.parse(g.expires_at) > now()).length}</strong></div><div class="metric"><span>Por aprobar</span><strong>${all.filter((g) => g.state === "pending_approval").length}</strong></div><div class="metric"><span>Por revocar</span><strong id="revoke-count">${all.filter((g) => g.state === "revoking" || (g.state === "active" && Date.parse(g.expires_at) <= now())).length}</strong></div></div>` +
-    `<div class="toolbar"><label for="filter">Mostrar</label><select id="filter"><option value="all">Todas las solicitudes</option><option value="pending">Por aprobar</option><option value="active">Activas</option><option value="mine">Mis solicitudes</option></select><span class="muted">${esc(person(actor()))} / Rol simulado</span></div>` +
+    `<div class="toolbar"><label for="filter">Mostrar</label><select id="filter"><option value="all">Todas las solicitudes</option><option value="pending">Por aprobar</option><option value="active">Activas</option><option value="mine">Mis solicitudes</option></select><span class="muted">${esc(person(actor()))} / ${verified ? "Identidad verificada por Ozal" : "Rol simulado"}</span></div>` +
     (list.length
       ? `<div class="table-shell"><table><thead><tr><th scope="col">Persona o agente</th><th scope="col">Permiso</th><th scope="col">Estado</th><th scope="col">Ventana</th><th scope="col">Acciones</th></tr></thead><tbody>${list.map((g) => `<tr data-grant="${esc(g.id)}"><td><div class="person-cell"><span class="avatar" aria-hidden="true">${g.key.Principal.startsWith("agent:") ? "AG" : "IR"}</span><span class="person">${esc(person(g.key.Principal))}<small>${g.key.Principal.startsWith("agent:") ? "Agente de diagnóstico" : "Equipo de operaciones"}</small></span></div></td><td><span class="mobile-label">Permiso</span><button class="link-button" data-action="detail" data-id="${esc(g.id)}">${esc(titles[g.entitlement_id] || g.entitlement_id)}</button><small>${esc(g.key.Target)} / ${esc(g.key.Role)}</small></td><td><span class="mobile-label">Estado</span><span class="status ${g.state === "active" ? "active" : ""}">${esc(states[g.state] || g.state)}</span></td><td><span class="mobile-label">Ventana</span><span class="time-left" data-expiry="${esc(g.id)}" title="${esc(date(g.expires_at))}">${esc(remaining(g))}</span></td><td><div class="row-actions">${rowActions(g)}</div></td></tr>`).join("")}</tbody></table></div>`
       : empty(
@@ -214,6 +220,15 @@ async function refresh(force = false) {
     });
     if (!response.ok) throw new Error("unavailable");
     data = await response.json();
+    if (data.identity && !verified) {
+      verified = data.identity;
+      const identity = document.querySelector(".identity");
+      identity.replaceChildren();
+      const who = document.createElement("span");
+      who.textContent = `${verified.name || verified.principal} · verificado por Ozal`;
+      identity.append(who);
+      document.querySelector(".workspace-name span").textContent = "Operación";
+    }
     serverOffset = Date.parse(data.now) - Date.now();
     errorBox.hidden = !data.worker_error && !data.missing;
     errorBox.textContent = data.worker_error
@@ -224,8 +239,9 @@ async function refresh(force = false) {
     render(force);
   } catch {
     errorBox.hidden = false;
-    errorBox.innerHTML =
-      'No pudimos conectar con el laboratorio. Si abriste la web estática, iniciá <code>lease demo</code>. <button class="quiet" data-action="retry">Reintentar</button>';
+    errorBox.innerHTML = verified
+      ? 'No pudimos conectar con Lease. Si la sesión de Ozal venció, recargá la página para volver a entrar. <button class="quiet" data-action="retry">Reintentar</button>'
+      : 'No pudimos conectar con el laboratorio. Si abriste la web estática, iniciá <code>lease demo</code>. <button class="quiet" data-action="retry">Reintentar</button>';
     screen.setAttribute("aria-busy", "false");
     if (!data)
       screen.innerHTML =
@@ -244,8 +260,10 @@ async function mutate(action, body) {
   try {
     const response = await fetch(`/api/${action}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Lease-Demo": "1" },
-      body: JSON.stringify({ ...body, actor: actor() }),
+      headers: verified
+        ? { "Content-Type": "application/json", "X-Lease-Request": "1" }
+        : { "Content-Type": "application/json", "X-Lease-Demo": "1" },
+      body: JSON.stringify(verified ? body : { ...body, actor: actor() }),
       signal: AbortSignal.timeout(10000),
     });
     const result = await response.json();
@@ -253,7 +271,9 @@ async function mutate(action, body) {
       throw new Error(result.error || "No se pudo completar la operación.");
     feedback.textContent =
       action === "request"
-        ? "Solicitud registrada. Cambiá al rol de Mateo para revisarla."
+        ? verified
+          ? "Solicitud registrada. Queda pendiente de un aprobador."
+          : "Solicitud registrada. Cambiá al rol de Mateo para revisarla."
         : action === "approve"
           ? "Acceso concedido. La ventana ya está corriendo."
           : action === "deny"
@@ -381,7 +401,7 @@ $("#request-form").addEventListener("submit", async (event) => {
   }
 });
 $("#entitlement").addEventListener("change", updateDurations);
-$("#actor").addEventListener("change", () => {
+$("#actor")?.addEventListener("change", () => {
   feedback.textContent = "";
   render(true);
 });

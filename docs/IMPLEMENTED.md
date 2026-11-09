@@ -129,3 +129,32 @@ Evidencia observada durante este avance:
 
 Sin instalación productiva, publicación, alertas operativas ni cierre de
 `LEASE-007`. Este avance continúa el corte local `d85637c`.
+
+## LEASE-020 (parcial) — identidad verificada por Ozal — 2026-11-09
+
+`lease serve` sirve consola y API para destinos reales sólo detrás de Ozal.
+Nuevo paquete `internal/identity`: verificador de la aserción EdDSA de Ozal
+(clave fijada, emisor, audiencia, ventana ≤60 s con tolerancia, `jti` sin
+repetición con caché acotada que falla cerrada) y mapeo explícito de sujeto o
+email a principal. `internal/web.NewOperational`: actor tomado de la identidad
+(un `actor` en el cuerpo es 400), mutaciones con `Origin` público,
+`X-Lease-Request` y JSON, vista filtrada por principal. La consola oculta el
+selector de rol cuando el servidor informa una identidad verificada.
+
+Evidencia observada:
+
+- Tests Go con race: verificador (firma, emisor, audiencia, sujeto, `jti`,
+  vida, vencido, futuro, firma alterada, repetición, configuraciones débiles,
+  caché llena), middleware (loopback, IPv6, varias aserciones, sin mapeo) y
+  modo operativo (actor del cuerpo, origen cruzado, falta de marcador,
+  autoaprobación, aprobación, visibilidad del agente y del aprobador,
+  repetición, recursos estáticos sin identidad).
+- Sabotaje deliberado del filtro de visibilidad, del chequeo de origen y del
+  rechazo de `actor`: cada uno hizo fallar su test; código restaurado.
+- `scripts/test-ozal.mjs` contra Ozal `c9abeb1` real: PASS en los siete
+  chequeos (tres passkeys, consola sin selector, atribución verificada,
+  autoaprobación rechazada y aprobación activa, persona sin mapeo 403,
+  acceso directo y cabeceras falsas 401, revocación).
+
+Pendiente del mismo ID: aceptación publicada con passkeys físicas, destino
+PostgreSQL real detrás de `serve` e identidad de agentes sin navegador.
