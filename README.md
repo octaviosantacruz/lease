@@ -6,8 +6,9 @@ persistente en SQLite.
 
 **Primer corte local, 22/10/2026:** CLI operativa, proveedor PostgreSQL probado
 en un clúster descartable, consola de laboratorio y web de presentación
-exportable. No hay despliegue público ni identidad OIDC. La CLI confía en el
-operador del sistema: `--as` atribuye una acción, no autentica a una persona.
+exportable. No hay despliegue público. La CLI confía en el operador del sistema: `--as`
+atribuye una acción, no autentica a una persona. La identidad verificada llega
+con `lease serve` detrás de Ozal (09/11, ver abajo).
 
 ## Probar sin destinos reales
 
@@ -56,6 +57,18 @@ de actores es una regla funcional; alguien con acceso al binario y los archivos
 puede elegir otro `--as`. Una separación real entre personas necesita identidad
 verificada, pendiente de `LEASE-020`.
 
+## Detrás de Ozal
+
+`lease serve` publica la consola y la API para destinos reales sólo detrás de
+[Ozal](https://ozal.dev): la identidad sale de la aserción firmada por Ozal,
+no de `--as` ni de un selector. Escucha en loopback y rechaza cualquier
+petición sin aserción válida o de una persona sin mapeo.
+[Configuración, garantías y aceptación](docs/ozal.md).
+
+```sh
+./lease serve --db ./broker.sqlite --config policy.json --identity identity.json
+```
+
 ## PostgreSQL
 
 [Contrato, permisos y límites](docs/postgres.md). Usa roles temporales NOLOGIN
@@ -97,6 +110,7 @@ si no existe `/api/state`. El runtime no necesita Node, CDN ni recursos externos
 scripts/verify.sh                   # gofmt, vet, race, build, diff
 scripts/test-postgres.sh            # integración real descartable
 scripts/test-web.sh                 # navegador, requiere agent-browser/Chromium
+node scripts/test-ozal.mjs          # detrás de Ozal real, ver docs/ozal.md
 ```
 
 `go test ./...` deja la integración PostgreSQL skipped cuando no se ejecuta su
@@ -109,7 +123,8 @@ internal/reconcile/    comparación pura, con identidad por GrantID
 internal/broker/       política, ejecutor y recuperación
 internal/provider/     contrato, laboratorio y PostgreSQL
 internal/store/        migración explícita, intentos y auditoría encadenada
-internal/web/          presentación, guía, consola y API sólo de laboratorio
+internal/identity/     verificación de la aserción de Ozal y mapeo a principales
+internal/web/          presentación, guía, consola de laboratorio y modo operativo detrás de Ozal
 ```
 
 Los paquetes puros no leen reloj ni hacen I/O. La implementación completa del

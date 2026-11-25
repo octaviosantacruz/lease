@@ -86,7 +86,15 @@ func webCommand(ctx context.Context, args []string, out, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	server := &http.Server{Handler: app.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192}
+	fmt.Fprintln(out, "Lease lab:", "http://"+listener.Addr().String())
+	fmt.Fprintln(out, "Console:", "http://"+listener.Addr().String()+"/console/")
+	return serveApp(ctx, listener, app, stderr)
+}
+
+// serveApp runs the HTTP server and the reconcile worker until ctx ends.
+// Shared by the lab console and the operational server behind Ozal.
+func serveApp(ctx context.Context, listener net.Listener, app *web.App, stderr io.Writer) int {
+	server := &http.Server{Handler: app.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16384}
 	workCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	workerDone := make(chan struct{})
@@ -98,9 +106,7 @@ func webCommand(ctx context.Context, args []string, out, stderr io.Writer) int {
 		defer stop()
 		server.Shutdown(shutdownCtx)
 	}()
-	fmt.Fprintln(out, "Lease lab:", "http://"+listener.Addr().String())
-	fmt.Fprintln(out, "Console:", "http://"+listener.Addr().String()+"/console/")
-	if err = server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
